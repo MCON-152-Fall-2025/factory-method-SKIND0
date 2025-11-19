@@ -108,6 +108,49 @@ class RecipeControllerTest {
             verifyNoMoreInteractions(recipeService);
         }
 
+        //now for the soup one:
+        @Test
+        void testAddSoupRecipe_thenAnswer_andArgumentCaptor_andInOrder_andNoMoreInteractions() throws Exception {
+            ObjectNode json = mapper.createObjectNode();
+            json.put("type", "SOUP");
+            json.put("title", "Soup");
+            json.put("description", "Delicious soup");
+            json.put("ingredients", "1 pepper, 2 cups water, 1 chicken");
+            json.put("instructions", "Mix and leave on stove for 3 hours");
+            json.put("servings", 4);
+            String jsonString = mapper.writeValueAsString(json);
+
+            // thenAnswer: assign ID dynamically based on the request body
+            when(recipeService.addRecipe(any(Recipe.class))).thenAnswer(invocation -> {
+                Recipe r = invocation.getArgument(0);
+                return new Recipe(1L, r.getTitle(), r.getDescription(), r.getIngredients(), r.getInstructions(), 6);
+            });
+
+            mockMvc.perform(post("/api/recipes")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(jsonString))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.title").value("Soup"))
+                    .andExpect(jsonPath("$.description").value("Delicious soup"))
+                    .andExpect(jsonPath("$.ingredients").value("1 pepper, 2 cups water, 1 chicken"))
+                    .andExpect(jsonPath("$.instructions").value("Mix and leave on stove for 3 hours"))
+                    .andExpect(jsonPath("$.id").value(1));
+
+            // capture the Recipe passed into service
+            verify(recipeService).addRecipe(recipeCaptor.capture());
+            Recipe captured = recipeCaptor.getValue();
+            assertNull(captured.getId()); // ID is assigned in service, controller passes no ID
+            assertEquals("Soup", captured.getTitle());
+            assertInstanceOf(SoupRecipe.class, captured);
+
+            // verify order (only addRecipe is expected in this flow)
+            InOrder order = inOrder(recipeService);
+            order.verify(recipeService).addRecipe(any(Recipe.class));
+
+            // ensure nothing else on the service was called
+            verifyNoMoreInteractions(recipeService);
+        }
+
         @ParameterizedTest
         @CsvSource({
                 "'Chocolate Cake','Rich chocolate cake','2 cups flour;1 cup cocoa;4 eggs','Bake at 350F for 30 min'",
