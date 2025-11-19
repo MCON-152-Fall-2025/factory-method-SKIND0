@@ -129,3 +129,10 @@ For questions or feedback, please open an issue on GitHub.
 
 - [Spring Boot Documentation](https://spring.io/projects/spring-boot)
 - [Apache Maven Documentation](https://maven.apache.org/guides/index.html)
+//adding new words here. 
+to run an application using maven, type this: mvn spring-boot:run 
+
+to access the application using ssh port formating. 
+from the local machine create an ssh tunel. here i used: 
+ssh -L 8082:localhost:8081 -p 5003 student@lab-7b26ae37-b882-4d58-8930-a67d4ab2a674.eastus.cloudapp.azure.com
+then browse to http:localhost:8082
