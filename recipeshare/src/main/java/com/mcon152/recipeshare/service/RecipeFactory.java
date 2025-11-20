@@ -19,6 +19,13 @@ public class RecipeFactory {
             case "DAIRY":
                 out = new DairyRecipe();
                 break;
+            case "SOUP":
+                SoupRecipe soup = new SoupRecipe();
+                if (req != null && req.getSpiceLevel() != null) {
+                    soup.setSpiceLevel(req.getSpiceLevel());
+                }
+                out = soup;
+                break;
             case "BASIC":
             default:
                 out = new BasicRecipe();
