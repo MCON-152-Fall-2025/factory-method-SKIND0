@@ -1,98 +1,177 @@
 package com.mcon152.recipeshare.web;
 
 import com.mcon152.recipeshare.Recipe;
-import com.mcon152.recipeshare.service.RecipeFactory;
-import com.mcon152.recipeshare.service.RecipeService;
-import org.springframework.http.ResponseEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
 @RequestMapping("/api/recipes")
 public class RecipeController {
-    private final RecipeService recipeService;
 
-    public RecipeController(RecipeService recipeService) {
-        this.recipeService = recipeService;
-    }
+    private static final Logger logger = LoggerFactory.getLogger(RecipeController.class);
+    private final List<Recipe> recipes = new ArrayList<>();
+
+    private final AtomicLong counter = new AtomicLong();
+    RecipeController() {}
 
     /**
-     * Create a new recipe.
-     * Returns 201 Created with Location header pointing to the new resource.
+     * Adds a new recipe to the list.
+     *
+     * @param recipe the recipe to add
+     * @return the added recipe with its assigned ID
      */
     @PostMapping
-    public ResponseEntity<Recipe> addRecipe(@RequestBody RecipeRequest recipeRequest) {
+    public Recipe addRecipe(@RequestBody Recipe recipe) {
+        logger.info("POST /api/recipes - Creating new recipe");
+        logger.debug("Recipe details: title={}", recipe.getTitle());
         try {
-            Recipe toSave = RecipeFactory.createFromRequest(recipeRequest);
-            Recipe saved = recipeService.addRecipe(toSave);
-
-            URI location = ServletUriComponentsBuilder
-                    .fromCurrentRequest()           // /api/recipes
-                    .path("/{id}")                  // /{id}
-                    .buildAndExpand(saved.getId())
-                    .toUri();
-
-            return ResponseEntity.created(location).body(saved);
+            recipe.setId(counter.incrementAndGet());
+            recipes.add(recipe);
+            logger.info("Successfully created recipe with id={}", recipe.getId());
+            return recipe;
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            logger.error("Error occurred while adding recipe: {}", e.getMessage(), e);
+            throw e;
         }
     }
 
     /**
-     * Retrieve all recipes. 200 OK.
+     * Retrieves all recipes.
+     *
+     * @return a list of all recipes
      */
     @GetMapping
-    public ResponseEntity<List<Recipe>> getAllRecipes() {
-        return ResponseEntity.ok(recipeService.getAllRecipes());
-    }
-
-    /**
-     * Retrieve a recipe by id. 200 OK or 404 Not Found.
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<Recipe> getRecipeById(@PathVariable long id) {
-        return recipeService.getRecipeById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    /**
-     * Delete a recipe. 204 No Content if deleted, 404 Not Found otherwise.
-     */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRecipe(@PathVariable long id) {
+    public List<Recipe> getAllRecipes() {
+        logger.info("GET /api/recipes - Retrieving all recipes");
         try {
-            boolean deleted = recipeService.deleteRecipe(id);
-            return deleted
-                    ? ResponseEntity.noContent().build()
-                    : ResponseEntity.notFound().build();
+            logger.info("Successfully retrieved {} recipes", recipes.size());
+            return recipes;
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            logger.error("Error occurred while retrieving recipes: {}", e.getMessage(), e);
+            throw e;
         }
     }
 
     /**
-     * Replace a recipe (full update). 200 OK with updated entity or 404 Not Found.
+     * Retrieves a recipe by its ID.
+     *
+     * @param id the ID of the recipe to retrieve
+     * @return the recipe with the specified ID, or null if not found
      */
-    @PutMapping("/{id}")
-    public ResponseEntity<Recipe> updateRecipe(@PathVariable long id, @RequestBody RecipeRequest updatedRequest) {
-        Recipe updatedRecipe = RecipeFactory.createFromRequest(updatedRequest);
-        return recipeService.updateRecipe(id, updatedRecipe)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    @GetMapping("/{id}")
+    public Recipe getRecipeById(@PathVariable long id) {
+        logger.info("GET /api/recipes/{} - Retrieving recipe", id);
+        try {
+            for (Recipe recipe : recipes) {
+                if (recipe.getId() == id) {
+                    logger.info("Successfully retrieved recipe with id={}", id);
+                    return recipe;
+                }
+            }
+            logger.warn("Recipe not found with id={}", id);
+            return null;
+        } catch (Exception e) {
+            logger.error("Error occurred while retrieving recipe with id={}: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
-     * Partial update. 200 OK with updated entity or 404 Not Found.
+     * Deletes a recipe by its ID.
+     *
+     * @param id the ID of the recipe to delete
+     * @return true if the recipe was deleted, false if not found
+     */
+    @DeleteMapping("/{id}")
+    public boolean deleteRecipe(@PathVariable long id) {
+        logger.info("DELETE /api/recipes/{} - Deleting recipe", id);
+        try {
+            for (int i = 0; i < recipes.size(); i++) {
+                if (recipes.get(i).getId() == id) {
+                    recipes.remove(i);
+                        logger.info("Successfully deleted recipe with id={}", id);
+                    return true;
+                }
+            }
+            logger.warn("Recipe not found for deletion with id={}", id);
+            return false;
+        } catch (Exception e) {
+            logger.error("Error occurred while deleting recipe with id={}: {}", id, e.getMessage(), e);
+            throw e;
+        }
+    }
+    /**
+     * Updates an existing recipe by its ID.
+     *
+     * @param id the ID of the recipe to update
+     * @param updatedRecipe the updated recipe data
+     * @return the updated recipe, or null if not found
+     */
+    @PutMapping("/{id}")
+    public Recipe updateRecipe(@PathVariable long id, @RequestBody Recipe updatedRecipe) {
+        logger.info("PUT /api/recipes/{} - Updating recipe", id);
+        logger.debug("Update details: title={}", updatedRecipe.getTitle());
+
+        try {
+            for (Recipe recipe : recipes) {
+                if (recipe.getId() == id) {
+                    recipe.setTitle(updatedRecipe.getTitle());
+                    recipe.setDescription(updatedRecipe.getDescription());
+                    recipe.setIngredients(updatedRecipe.getIngredients());
+                    recipe.setInstructions(updatedRecipe.getInstructions());
+                    logger.info("Successfully updated recipe with id={}", id);
+                    return recipe;
+                }
+            }
+            logger.warn("Recipe not found for update with id={}", id);
+            return null;
+        } catch (Exception e) {
+            logger.error("Error occurred while updating recipe with id={}: {}", id, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Partially updates an existing recipe by its ID.
+     *
+     * @param id the ID of the recipe to update
+     * @param partialRecipe the partial recipe data to update
+     * @return the updated recipe, or null if not found
      */
     @PatchMapping("/{id}")
-    public ResponseEntity<Recipe> patchRecipe(@PathVariable long id, @RequestBody RecipeRequest partialRequest) {
-        Recipe partialRecipe = RecipeFactory.createFromRequest(partialRequest);
-        return recipeService.patchRecipe(id, partialRecipe)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public Recipe patchRecipe(@PathVariable long id, @RequestBody Recipe partialRecipe) {
+        logger.info("PATCH /api/recipes/{} - Partially updating recipe", id);
+        logger.debug("Patch details: title={}", partialRecipe.getTitle());
+
+        try {
+            for (Recipe recipe : recipes) {
+                if (recipe.getId() == id) {
+                    if (partialRecipe.getTitle() != null) {
+                        recipe.setTitle(partialRecipe.getTitle());
+                    }
+                    if (partialRecipe.getDescription() != null) {
+                        recipe.setDescription(partialRecipe.getDescription());
+                    }
+                    if (partialRecipe.getIngredients() != null) {
+                        recipe.setIngredients(partialRecipe.getIngredients());
+                    }
+                    if (partialRecipe.getInstructions() != null) {
+                        recipe.setInstructions(partialRecipe.getInstructions());
+                    }
+                    logger.info("Successfully patched recipe with id={}", id);
+                    return recipe;
+                }
+            }
+            logger.warn("Recipe not found for patch with id={}", id);
+            return null;
+        } catch (Exception e) {
+            logger.error("Error occurred while patching recipe with id={}: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 }
